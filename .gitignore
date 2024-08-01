@@ -1,162 +1,72 @@
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-*$py.class
+import os
+import win32com.client
+import pdfkit
+from tkinter import Tk, Label, Button, filedialog, messagebox
 
-# C extensions
-*.so
+class MSGToPDFConverter:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("MSG to PDF Converter")
 
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
+        self.label = Label(root, text="Click 'Select MSG Files' to start the conversion process.")
+        self.label.pack(pady=10)
 
-# PyInstaller
-#  Usually these files are written by a python script from a template
-#  before PyInstaller builds the exe, so as to inject date/other infos into it.
-*.manifest
-*.spec
+        self.select_button = Button(root, text="Select MSG Files", command=self.select_msg_files)
+        self.select_button.pack(pady=10)
 
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
+        self.convert_button = Button(root, text="Convert to PDF", command=self.convert_msg_to_pdf, state="disabled")
+        self.convert_button.pack(pady=10)
 
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
-.pytest_cache/
-cover/
+        self.msg_files = []
 
-# Translations
-*.mo
-*.pot
+    def select_msg_files(self):
+        self.msg_files = filedialog.askopenfilenames(filetypes=[("MSG files", "*.msg")], title="Select MSG Files")
+        if self.msg_files:
+            self.label.config(text=f"Selected {len(self.msg_files)} files.")
+            self.convert_button.config(state="normal")
+        else:
+            self.label.config(text="No files selected.")
+            self.convert_button.config(state="disabled")
 
-# Django stuff:
-*.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
+    def convert_msg_to_pdf(self):
+        if not self.msg_files:
+            messagebox.showerror("Error", "No MSG files selected.")
+            return
 
-# Flask stuff:
-instance/
-.webassets-cache
+        outlook = win32com.client.Dispatch("Outlook.Application").GetNamespace("MAPI")
+        config = pdfkit.configuration(wkhtmltopdf=r"C:\Program Files (x86)\wkhtmltopdf\bin\wkhtmltopdf.exe")
 
-# Scrapy stuff:
-.scrapy
+        for msg_file in self.msg_files:
+            try:
+                msg_file = os.path.abspath(msg_file)
+                msg = outlook.OpenSharedItem(msg_file)
+                html_content = msg.HTMLBody
 
-# Sphinx documentation
-docs/_build/
+                for attachment in msg.Attachments:
+                    if attachment.Type == 5:  # Embedded image
+                        attachment.SaveAsFile(os.path.join(os.path.dirname(msg_file), attachment.FileName))
+                        html_content = html_content.replace(f"cid:{attachment.FileName}", attachment.FileName)
 
-# PyBuilder
-.pybuilder/
-target/
+                html_file_path = msg_file.replace('.msg', '.html')
+                with open(html_file_path, 'w', encoding='utf-8') as f:
+                    f.write(html_content)
 
-# Jupyter Notebook
-.ipynb_checkpoints
+                pdf_file_path = msg_file.replace('.msg', '.pdf')
+                pdfkit.from_file(html_file_path, pdf_file_path, configuration=config)
 
-# IPython
-profile_default/
-ipython_config.py
+                os.remove(html_file_path)
+                for attachment in msg.Attachments:
+                    if os.path.exists(os.path.join(os.path.dirname(msg_file), attachment.FileName)):
+                        os.remove(os.path.join(os.path.dirname(msg_file), attachment.FileName))
+                
+                print(f"Successfully converted {msg_file} to {pdf_file_path}")
 
-# pyenv
-#   For a library or package, you might want to ignore these files since the code is
-#   intended to run in multiple environments; otherwise, check them in:
-# .python-version
+            except Exception as e:
+                print(f"Failed to convert {msg_file}: {e}")
 
-# pipenv
-#   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
-#   However, in case of collaboration, if having platform-specific dependencies or dependencies
-#   having no cross-platform support, pipenv may install dependencies that don't work, or not
-#   install all needed dependencies.
-#Pipfile.lock
+        messagebox.showinfo("Conversion Complete", "All selected MSG files have been converted to PDF.")
 
-# poetry
-#   Similar to Pipfile.lock, it is generally recommended to include poetry.lock in version control.
-#   This is especially recommended for binary packages to ensure reproducibility, and is more
-#   commonly ignored for libraries.
-#   https://python-poetry.org/docs/basic-usage/#commit-your-poetrylock-file-to-version-control
-#poetry.lock
-
-# pdm
-#   Similar to Pipfile.lock, it is generally recommended to include pdm.lock in version control.
-#pdm.lock
-#   pdm stores project-wide configurations in .pdm.toml, but it is recommended to not include it
-#   in version control.
-#   https://pdm.fming.dev/latest/usage/project/#working-with-version-control
-.pdm.toml
-.pdm-python
-.pdm-build/
-
-# PEP 582; used by e.g. github.com/David-OConnor/pyflow and github.com/pdm-project/pdm
-__pypackages__/
-
-# Celery stuff
-celerybeat-schedule
-celerybeat.pid
-
-# SageMath parsed files
-*.sage.py
-
-# Environments
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# Spyder project settings
-.spyderproject
-.spyproject
-
-# Rope project settings
-.ropeproject
-
-# mkdocs documentation
-/site
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pyre type checker
-.pyre/
-
-# pytype static type analyzer
-.pytype/
-
-# Cython debug symbols
-cython_debug/
-
-# PyCharm
-#  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
-#  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
-#  and can be added to the global gitignore or merged into this file.  For a more nuclear
-#  option (not recommended) you can uncomment the following to ignore the entire idea folder.
-#.idea/
+if __name__ == "__main__":
+    root = Tk()
+    app = MSGToPDFConverter(root)
+    root.mainloop()
